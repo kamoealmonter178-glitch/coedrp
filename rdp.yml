@@ -1,0 +1,377 @@
+name: RDP
+on:
+  workflow_dispatch:
+jobs:
+  secure-rdp:
+    runs-on: windows-2025
+    timeout-minutes: 3600
+    steps:
+      - name: Ownership Verification (Encoded)
+        run: |
+          $encodedNotice = "Cj09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQogQ29weXJpZ2h0IMKpIDIwMjUgVG9vbGJveExhcC54eXogfCBodHRwczovL3d3dy50b29sYm94bGFwLnh5ei8KIEFsbCByaWdodHMgcmVzZXJ2ZWQuIERvIG5vdCByZW1vdmUgb3IgbW9kaWZ5IGNvcHlyaWdodCB0ZXh0LgogWW91VHViZTogaHR0cHM6Ly93d3cueW91dHViZS5jb20vY2hhbm5lbC9VQ0RUNGZzOUp3cm5RSVhQclhYOHlIZVEKIEZhY2Vib29rOiBodHRwczovL3d3dy5mYWNlYm9vay5jb20vcHJvZmlsZS5waHA/aWQ9NjE1Njc4OTY2OTI5OTQKIEFueSBjaGFuZ2VzIHdpbGwgYXV0b21hdGljYWxseSBkaXNhYmxlIHRoaXMgc2NyaXB0IQo9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0K"
+          $decodedNotice = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedNotice))
+          Write-Host $decodedNotice
+          if (-not $decodedNotice -or $decodedNotice -notlike "*ToolboxLap.xyz*") {
+              Write-Error "Copyright was tampered with or removed – script will not work!"
+              exit 1
+          }
+
+      - name: Core RDP Settings
+        run: |
+          $folderPath = "D:\link subscribe youtube channel"
+          if (-Not (Test-Path -Path $folderPath)) {
+              New-Item -Path $folderPath -ItemType Directory
+              Write-Host "Folder 'link subscribe youtube channel' has been created in D drive."
+          } else {
+              Write-Host "Folder 'link subscribe youtube channel' already exists in D drive."
+          }
+
+      - name: Configure Core RDP Settings
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
+          netsh advfirewall firewall delete rule name="RDP-Tailscale"
+          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
+          Restart-Service -Name TermService -Force
+
+      - name: Create RDP User with Static Password
+        run: |
+          $password = "admin@123"
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+
+          if (-not (Get-LocalUser -Name "TOOLBOXLAP" -ErrorAction SilentlyContinue)) {
+              New-LocalUser -Name "TOOLBOXLAP" -Password $securePass -AccountNeverExpires
+          }
+          Add-LocalGroupMember -Group "Administrators" -Member "TOOLBOXLAP"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "TOOLBOXLAP"
+          echo "RDP_CREDS=User: TOOLBOXLAP | Password: $password" >> $env:GITHUB_ENV
+
+          # Create Redirection Script (Pre-Login)
+          $scriptContent = @"
+          `$portableRoot = 'D:\PortableSystem'
+          `$regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
+          `$map = @{
+              'Desktop' = "`$portableRoot\Desktop";
+              'Personal' = "`$portableRoot\Documents";
+              '{374DE290-123F-4565-9164-39C4925E467B}' = "`$portableRoot\Downloads";
+              'My Music' = "`$portableRoot\Music";
+              'My Pictures' = "`$portableRoot\Pictures";
+              'My Video' = "`$portableRoot\Videos"
+          }
+          if (-not (Test-Path `$regPath)) { New-Item -Path `$regPath -Force }
+          foreach (`$key in `$map.Keys) {
+              Set-ItemProperty -Path `$regPath -Name `$key -Value `$map[`$key] -Type ExpandString -Force
+          }
+          
+          # Performance Tweaks: Optimize for Speed over Quality
+          `$desktop = 'HKCU:\Control Panel\Desktop'
+          if (-not (Test-Path `$desktop)) { New-Item -Path `$desktop -Force }
+          # 1. Disable Wallpaper & Theming
+          Set-ItemProperty -Path `$desktop -Name "Wallpaper" -Value "" -Force
+          Set-ItemProperty -Path `$desktop -Name "VisualizeVisualStyles" -Value 0 -Force
+          # 2. Disable Font Smoothing (ClearType)
+          Set-ItemProperty -Path `$desktop -Name "FontSmoothing" -Value "0" -Force
+          # 3. Disable Full Window Dragging
+          Set-ItemProperty -Path `$desktop -Name "DragFullWindows" -Value "0" -Force
+          "@
+          Set-Content -Path "C:\Redirect-Profile.ps1" -Value $scriptContent
+
+      - name: Pre-load User Profile (Skip First Login Wait)
+        run: |
+          Write-Host "Pre-loading Windows User Profile for TOOLBOXLAP..."
+          $password = ConvertTo-SecureString "admin@123" -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential ("TOOLBOXLAP", $password)
+          
+          # Run the redirection script AS THE USER to set HKCU keys immediately
+          try {
+              Start-Process powershell.exe -Credential $cred -ArgumentList "-ExecutionPolicy Bypass -File C:\Redirect-Profile.ps1" -LoadUserProfile -Wait
+              Write-Host "Profile created and redirected successfully!"
+          } catch {
+              Write-Warning "Profile pre-load/redirection minor issue."
+          }
+
+      - name: Install Tailscale
+        run: |
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          $installerPath = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          Remove-Item $installerPath -Force
+
+      - name: Install and Configure Rclone (Auto-Login)
+        run: |
+          # Install Rclone
+          choco install rclone -y
+          
+          # Create Config Automatically for MEGA
+          # Syntax: rclone config create [name] [type] [key=value]...
+          # Note: We use the credentials provided by the user.
+          $portableRoot = "D:\PortableSystem"
+          if (-not (Test-Path $portableRoot)) { New-Item -Path $portableRoot -ItemType Directory -Force }
+
+          # --- MEGALIST START ---
+          # Add your accounts here. Format: "email : password"
+          $megaAccounts = @(
+              "itmemugpig@otona.uk : itmemugpig@otona.uk",
+              "b67ebe3c01@webxio.pro : b67ebe3c01@webxio.pro",
+              "d4d8692a49@webxio.pro : d4d8692a49@webxio.pro"
+          )
+          # --- MEGALIST END ---
+
+          Write-Host "Configuring MegaHub (Multi-Account Pool)..."
+          # Kill any existing Rclone processes to unlock rclone.conf
+          Stop-Process -Name "rclone" -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 1
+          
+          $upstreams = @()
+          $i = 1
+
+          foreach ($account in $megaAccounts) {
+              if ($account -match "(.+)\s*:\s*(.+)") {
+                  $u = $matches[1].Trim()
+                  $p = $matches[2].Trim()
+                  $remoteName = "mega$i"
+                  
+                  Write-Host "Adding Account ${i}: $u"
+                  rclone config create $remoteName mega user $u pass $p --non-interactive --config "$portableRoot\rclone.conf"
+                  
+                  if ($LASTEXITCODE -eq 0) {
+                      $upstreams += "${remoteName}:FullSystem"
+                      $i++
+                      Start-Sleep -Milliseconds 500 # Prevent file locking
+                  } else {
+                      Write-Warning "Failed to add account: $u"
+                  }
+              }
+          }
+
+          if ($upstreams.Count -gt 0) {
+              # Create Union Remote (The Pool)
+              $upstreamString = $upstreams -join " "
+              Write-Host "Creating Pool with upstreams: $upstreamString"
+              
+              Write-Host "Creating Pool with upstreams: $upstreamString"
+              
+              # Policy: lfs = Least Free Space (Fills gaps intelligently)
+              # "Calculator Logic": Picks drive with least free space > chunk size.
+              rclone config create pool union upstreams "$upstreamString" action_policy epall create_policy lfs search_policy ff --non-interactive --config "$portableRoot\rclone.conf"
+              
+              Start-Sleep -Seconds 2 # Give time for file release
+
+              # Layer 3: The Liquidizer (Chunker) -> "The Calculator Logic"
+              # Wrapping in retry loop to guarantee creation
+              $sRetries = 0
+              $sCreated = $false
+              do {
+                  Write-Host "Creating Splitter (Attempt $($sRetries+1))..."
+                  rclone config create splitter chunker remote pool: chunk_size 256M hash_type md5 --non-interactive --config "$portableRoot\rclone.conf" 2>&1 | Out-Null
+                  if (rclone listremotes --config "$portableRoot\rclone.conf" | Select-String "splitter:") { 
+                      $sCreated = $true 
+                  } else {
+                      Start-Sleep -Seconds 2
+                      $sRetries++
+                  }
+              } until ($sCreated -or $sRetries -ge 3)
+
+              if ($sCreated) {
+                  Write-Host "✅ Smart Calculator Logic (MegaHub) Deployed Successfully!"
+              } else {
+                  Write-Error "Failed to initiate Calculator Logic (Splitter)."
+                  exit 1
+              }
+          } else {
+              Write-Error "No valid Mega accounts configured!"
+              exit 1
+          }
+
+      - name: Download & Restore (Silent T+0)
+        run: |
+          $portableRoot = "D:\PortableSystem"
+          $userDirs = @("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")
+          
+          Write-Host "----------------------------------------------"
+          Write-Host " STARTED SILENT RESTORE FROM CLOUD (T+0)"
+          Write-Host "----------------------------------------------"
+
+          # 1. Initialize Directory Structure
+          foreach ($dir in $userDirs) {
+              if (-not (Test-Path "$portableRoot\$dir")) {
+                  New-Item -Path "$portableRoot\$dir" -ItemType Directory -Force | Out-Null
+              }
+          }
+          
+          # 2. Check & Restore
+          if (rclone listremotes --config "$portableRoot\rclone.conf" | Select-String "splitter:") {
+              Write-Host "Checking Cloud Backup..."
+              $backupExists = $false
+              try {
+                  rclone lsd splitter: --config "$portableRoot\rclone.conf" 2>&1 | Out-Null
+                  if ($LASTEXITCODE -eq 0) { $backupExists = $true }
+              } catch { $backupExists = $false }
+
+              if ($backupExists) {
+                 Write-Host "Restoring Portable System (Desktop/Docs)..."
+                 rclone copy splitter: $portableRoot --transfers=16 --checkers=32 --drive-chunk-size=64M -v --config "$portableRoot\rclone.conf"
+                 
+                 Write-Host "Restoring System Programs (ProgramData/Files)..."
+                 rclone copy splitter:Backup/ProgramData C:\ProgramData --transfers=16 --checkers=32 -v --config "$portableRoot\rclone.conf" --ignore-errors --no-update-modtime
+                 rclone copy "splitter:Backup/Program Files" "C:\Program Files" --transfers=16 --checkers=32 -v --config "$portableRoot\rclone.conf" --ignore-errors --no-update-modtime
+                 rclone copy "splitter:Backup/Program Files (x86)" "C:\Program Files (x86)" --transfers=16 --checkers=32 -v --config "$portableRoot\rclone.conf" --ignore-errors --no-update-modtime
+                 
+                 Write-Host "Restoring Chrome Data..."
+                 taskkill /F /IM chrome.exe /T >nul 2>&1
+                 # Check if ChromeData exists in cloud before trying to copy
+                 if (rclone lsd splitter:Backup/ --config "$portableRoot\rclone.conf" | Select-String "ChromeData") {
+                     rclone copy splitter:Backup/ChromeData "$env:LOCALAPPDATA\Google\Chrome\User Data" --transfers=16 --checkers=32 -v --config "$portableRoot\rclone.conf" --ignore-errors --no-update-modtime
+                 } else {
+                     Write-Warning "ChromeData backup not found in cloud. Skipping."
+                 }
+              } else {
+                 Write-Warning "First Run: No backup found in Cloud. Starting fresh."
+              }
+          } else {
+              Write-Error "Cloud Config Missing!"
+          }
+          
+          # Force clean exit to avoid failing the build on partial restores
+          exit 0
+          
+      - name: Create Upload Tool (Visible T+5h)
+        run: |
+          $portableRoot = "D:\PortableSystem"
+          
+          # 1. Create Exclusion List (From User Request)
+          $exList = "$portableRoot\excludes.txt"
+          New-Item -Path $exList -Force | Out-Null
+          $exclusions = @(
+              "7-Zip/**", "Amazon/**", "Android/**", "Application Verifier/**", "Azure Cosmos DB Emulator/**", "CMake/**", "Common Files/**",
+              "dotnet/**", "Git/**", "GitHub CLI/**", "Google/**", "Hyper-V/**", "IIS/**", "IIS Express/**", "ImageMagick*/**", "Internet Explorer/**",
+              "LLVM/**", "Microsoft/**", "Microsoft*/**", "ModifiableWindowsApps/**", "MongoDB/**", "mongosh/**", "Mozilla Firefox/**", "MSBuild/**",
+              "MySQL/**", "nodejs/**", "OpenSSL/**", "PackageManagement/**", "PostgreSQL/**", "PowerShell/**", "R/**", "Reference Assemblies/**",
+              "Tailscale/**", "Unity Hub/**", "VS2010Schemas/**", "VS2012Schemas/**", "Windows Defender/**", "Windows Defender*/**", "Windows Mail/**",
+              "Windows Media Player/**", "Windows NT/**", "Windows Photo Viewer/**", "WindowsPowerShell/**", "HTML Help Workshop/**", "Inno Setup 6/**",
+              "Nuget/**", "Open XML SDK/**", "pipx/**", "pipx_bin/**", "sbt/**", "Visual Studio/**", "Windows Application Driver/**", "Windows Kits/**",
+              "WiX Toolset v3.14/**", "chocolatey/**", "ChocolateyHttpCache/**", "dbg/**", "dftmp/**", "docker/**", "GitHub/**", "kind/**", "m2/**",
+              "Microsoft DevDiv/**", "Microsoft Service Fabric/**", "Mozilla*/**", "Package Cache/**", "Packages/**", "regid*/**", "runner/**",
+              "shimgen/**", "SoftwareDistribution/**", "ssh/**", "USOPrivate/**", "USOShared/**", "Windows App Certification Kit/**", "gemrc/**",
+              "Temp/**", "Windows/**", "WSL/**", "wsl/**"
+          )
+          foreach ($ex in $exclusions) { Add-Content -Path $exList -Value "- $ex" }
+          
+          # 2. Create Upload Script (Batch)
+          $uploadScript = @"
+          @echo off
+          :: ------------------
+          :: UPLOAD TOOL (Smart LFS + Chunker)
+          :: ------------------
+          fltmc >nul 2>&1 || (
+              echo Requesting Admin Privileges...
+              :: Use cmd /k to keep the elevated window open for debugging
+              PowerShell -Command "Start-Process cmd -ArgumentList '/k \"\"%~f0\"\"' -Verb RunAs"
+              exit /b
+          )
+
+          echo ===================================================
+          echo   MEGAHUB UPLOAD TOOL
+          echo   Strategy: LFS (Fill Gaps) - Split: 250MB
+          echo ===================================================
+
+          echo [Check] Verifying Integrity...
+          rclone listremotes --config "D:\PortableSystem\rclone.conf" | findstr "mega1" >nul
+          if %errorlevel% neq 0 (
+             echo [Fix] Rebuilding MegaHub System...
+             :: If config is missing, pause to show error
+             echo ERROR: Config missing or broken.
+             pause
+          )
+          
+          echo [Warm Up] Initializing Remotes...
+          taskkill /F /IM rclone.exe /T >nul 2>&1
+          taskkill /F /IM chrome.exe /T >nul 2>&1
+          
+          echo [Phase 1] User Profile (Desktop/Docs)...
+          rclone sync D:\PortableSystem splitter: --transfers=16 --checkers=32 -P --config "D:\PortableSystem\rclone.conf" --exclude "rclone.conf*" --exclude "*.bat" --no-update-modtime || pause
+
+          echo [Phase 2] System Backup (Strict Exclusions)...
+          rclone sync C:\ProgramData splitter:Backup/ProgramData --transfers=16 --checkers=32 -P --config "D:\PortableSystem\rclone.conf" --filter-from "D:\PortableSystem\excludes.txt" --exclude "WSL/**" --exclude "wsl/**" --no-update-modtime --ignore-errors || pause
+          rclone sync "C:\Program Files" "splitter:Backup/Program Files" --transfers=16 --checkers=32 -P --config "D:\PortableSystem\rclone.conf" --filter-from "D:\PortableSystem\excludes.txt" --exclude "WSL/**" --exclude "wsl/**" --no-update-modtime --ignore-errors || pause
+          rclone sync "C:\Program Files (x86)" "splitter:Backup/Program Files (x86)" --transfers=16 --checkers=32 -P --config "D:\PortableSystem\rclone.conf" --filter-from "D:\PortableSystem\excludes.txt" --exclude "WSL/**" --exclude "wsl/**" --no-update-modtime --ignore-errors || pause
+          
+          echo [Phase 3] Chrome Data...
+          rclone sync "%LOCALAPPDATA%\Google\Chrome\User Data" splitter:Backup/ChromeData --transfers=16 --checkers=32 -P --config "D:\PortableSystem\rclone.conf" --no-update-modtime --ignore-errors || pause
+
+          echo ✅ UPLOAD COMPLETE.
+          pause
+          "@
+          Set-Content -Path "$portableRoot\Desktop\Upload-To-Cloud.bat" -Value $uploadScript
+          
+          # 3. Schedule T+5h Task (Visible)
+          try {
+             $action = New-ScheduledTaskAction -Execute "$portableRoot\Desktop\Upload-To-Cloud.bat"
+             $triggerTime = (Get-Date).AddHours(5)
+             $trigger = New-ScheduledTaskTrigger -Once -At $triggerTime
+             $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+             Register-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -TaskName "MegaHubAutoBackup" -Description "Visible Auto-Backup T+5h" -Force
+             Write-Host "Auto-Backup Scheduled for $triggerTime (Visible Mode)."
+          } catch {
+             Write-Warning "Could not schedule Auto-Backup task."
+          }
+
+      # -------------------------------------------------------------------------
+      # TAILSCALE SETUP
+      # -------------------------------------------------------------------------
+      - name: Install & Start Tailscale (Tunnel)
+        run: |
+          Write-Host "Installing Tailscale..."
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          $installerPath = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          Remove-Item $installerPath -Force
+
+          Write-Host "Connecting Tailscale..."
+          # Interactive Login (Link)
+          Start-Process "$env:ProgramFiles\Tailscale\tailscale.exe" -ArgumentList "up --hostname=gh-runner-$env:GITHUB_RUN_ID" -NoNewWindow
+          
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "👉 CHECK LOGS FOR AUTH LINK 👈"
+          Write-Host "=========================================="
+          
+          # Wait for IP
+          $tsIP = $null
+          while (-not $tsIP) {
+              $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+              if (-not $tsIP) { Write-Host "Waiting for auth/IP..."; Start-Sleep -Seconds 10 }
+          }
+          
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "TAILSCALE IP: $tsIP"
+          Write-Host "=========================================="
+          
+          while ($true) {
+              Write-Host "RDP Active (Tailscale) - Keep Alive..."
+              Start-Sleep -Seconds 300
+          }
+
+      - name: Verify RDP Accessibility
+        run: |
+          Write-Host "Use the Tailscale Link/IP from the logs to connect."
+          Write-Host "Local RDP is listening on port 3389."
+
+      - name: Maintain Connection
+        run: |
+          $ownershipNotice = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("Cj09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQogQ29weXJpZ2h0IMKpIDIwMjUgVG9vbGJveExhcC54eXogfCBodHRwczovL3d3dy50b29sYm94bGFwLnN5ei8KIEFsbCByaWdodHMgcmVzZXJ2ZWQuIERvIG5vdCByZW1vdmUgb3IgbW9kaWZ5IGNvcHlyaWdodCB0ZXh0LgogWW91VHViZTogaHR0cHM6Ly93d3cueW91dHViZS5jb20vY2hhbm5lbC9VQ0RUNGZzOUp3cm5RSVhQclhYOHlIZVEKIEZhY2Vib29rOiBodHRwczovL3d3dy5mYWNlYm9vay5jb20vcHJvZmlsZS5waHA/aWQ9NjE1Njc4OTY2OTI5OTQKIEFueSBjaGFuZ2VzIHdpbGwgYXV0b21hdGljYWxseSBkaXNhYmxlIHRoaXMgc2NyaXB0IQo9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0K"))
+          Write-Host $ownershipNotice
+          Write-Host "`n=== RDP ACCESS VIA TAILSCALE 2025 ==="
+          Write-Host "Address: (Check Tailscale IP In Logs)"
+          Write-Host "Username: TOOLBOXLAP"
+          Write-Host "Password: admin@123"
+          Write-Host "Powered by https://www.toolboxlap.xyz/"
+          Write-Host "========= All rights reserved =========`n"
+          while ($true) {
+              Write-Host "[$(Get-Date)] RDP Active - Check Tailscale IP - Use Ctrl+C to terminate"
+              Start-Sleep -Seconds 300
+          }
