@@ -20,13 +20,13 @@ jobs:
       - name: 1. Spawn High-Spec Codespace (Europe)
         run: |
           echo "🚀 Initiating Hybrid Codespace Protocol..."
-          echo "🌍 Region: Europe West (WestEurope) | 🧠 Specs: 4-Core (standardLinux)"
+          echo "🌍 Region: Europe West (WestEurope) | 🧠 Specs: 8-Core / 32GB (Forced by GitHub)"
           
           # Force Delete Old (Cleanup)
           # gh codespace delete --all --force --confirm || true
 
           # Create with specific Machine Type and Location
-          gh codespace create --repo $REPO_NAME --branch main --machine standardLinux --location WestEurope --display-name "$CODESPACE_NAME" --devcontainer-path .devcontainer/devcontainer.json
+          gh codespace create --repo $REPO_NAME --branch main --machine standardLinux32gb --location WestEurope --display-name "$CODESPACE_NAME" --devcontainer-path .devcontainer/devcontainer.json
           
           echo "⏳ Waiting for initialization (60s)..."
           sleep 60
