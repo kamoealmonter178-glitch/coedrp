@@ -1,6 +1,6 @@
 {
     "name": "Hybrid-RDP-Linux-Wine",
-    "image": "mcr.microsoft.com/devcontainers/universal:2",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
     "hostRequirements": {
         "cpus": 4,
         "memory": "8gb",
