@@ -70,7 +70,7 @@ jobs:
             sudo echo "deb [signed-by=/etc/apt/keyrings/winehq-archive.key] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/winehq-jammy.list
             
             sudo apt-get update
-            sudo apt-get install -y --install-recommends winehq-stable || echo 'Wine install warning (ignoring)'
+            sudo apt-get install -y --install-recommends winehq-stable wine-stable || echo 'Wine install warning (ignoring)'
 
             echo 'installing rclone...'
             if ! command -v rclone &> /dev/null; then curl https://rclone.org/install.sh | sudo bash; fi
