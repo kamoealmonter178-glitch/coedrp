@@ -79,6 +79,11 @@ jobs:
             echo 'installing tailscale...'
             curl -fsSL https://tailscale.com/install.sh | sh
             
+            echo 'starting tailscale daemon...'
+            sudo tailscaled --cleanup >/dev/null 2>&1 || true
+            sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock &
+            sleep 5
+            
             echo '✅ PHOENIX COMPLETE: System Ready.'
           "
           if [ -n "$TS_KEY" ]; then
