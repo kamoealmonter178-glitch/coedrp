@@ -11,6 +11,9 @@
         "ghcr.io/devcontainers/features/desktop-lite:1": {
             "version": "latest",
             "password": "vscode"
+        },
+        "ghcr.io/devcontainers/features/sshd:1": {
+            "version": "latest"
         }
     },
     "postCreateCommand": "bash .devcontainer/setup.sh",
