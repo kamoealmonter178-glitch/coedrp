@@ -49,42 +49,22 @@ jobs:
           # -----------------------------
 
           
+          
           # ------------------------------------------------------------------
-          # THE PHOENIX PROTOCOL: Self-Sufficient Installation via SSH
+          # PHASE 2: WAIT FOR SETUP & START DAEMON
           # ------------------------------------------------------------------
-          echo "🔥 exec 'The Phoenix': Installing EVERYTHING via SSH..."
+          echo "⏳ Waiting for setup.sh to complete..."
           gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "
-            set -e
-            echo 'cleaning apt...'
-            sudo rm -rf /var/lib/apt/lists/* && sudo apt-get clean && sudo apt-get update
+            while [ ! -f /tmp/setup_done ]; do
+              echo '... Still setting up (Wine/Tailscale)...'
+              sleep 10
+            done
+            echo '✅ Setup Complete!'
             
-            echo 'installing base tools (xrdp for RDP access)...'
-            sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp
-            sudo service xrdp start
-            
-            echo 'installing wine (32-bit)...'
-            sudo dpkg --add-architecture i386 || true
-            sudo mkdir -pm755 /etc/apt/keyrings
-            [ ! -f /etc/apt/keyrings/winehq-archive.key ] && sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-            
-            # FIX: Use direct DEB line instead of .sources file (Avoids 404)
-            sudo echo "deb [signed-by=/etc/apt/keyrings/winehq-archive.key] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/winehq-jammy.list
-            
-            sudo apt-get update
-            sudo apt-get install -y --install-recommends winehq-stable wine-stable || echo 'Wine install warning (ignoring)'
-
-            echo 'installing rclone...'
-            if ! command -v rclone &> /dev/null; then curl https://rclone.org/install.sh | sudo bash; fi
-
-            echo 'installing tailscale...'
-            curl -fsSL https://tailscale.com/install.sh | sh
-            
-            echo 'starting tailscale daemon...'
-            sudo tailscaled --cleanup >/dev/null 2>&1 || true
+            # Ensure Daemon is Up for Link Capture
+            sudo service tailscaled start 2>/dev/null || sudo tailscaled --cleanup
             sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock &
             sleep 5
-            
-            echo '✅ PHOENIX COMPLETE: System Ready.'
           "
           if [ -n "$TS_KEY" ]; then
               echo "🔑 TS_KEY detected! Attempting Auto-Auth..."

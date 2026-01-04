@@ -1,6 +1,33 @@
 #!/bin/bash
-# DUMMY SETUP SCRIPT for DevContainer
-# Real setup is handled by Deep-Breath Action via SSH (Phase: Phoenix)
+# RELIABLE SETUP SCRIPT (Golden Config)
+# Installs Wine (10.0) & Tailscale explicitly during container creation.
 
-echo "✅ Setup skipped (Handled by Action)."
+echo "🚀 SETUP STARTED: Installing Wine & Tailscale..."
+
+# 1. Clean & Update
+sudo rm -rf /var/lib/apt/lists/*
+sudo apt-get clean
+sudo apt-get update
+
+# 2. Install Base Tools
+sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp
+
+# 3. Install Wine (Verified Deb Method)
+echo "🍷 Installing Wine..."
+sudo dpkg --add-architecture i386 || true
+sudo mkdir -pm755 /etc/apt/keyrings
+[ ! -f /etc/apt/keyrings/winehq-archive.key ] && sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+sudo echo "deb [signed-by=/etc/apt/keyrings/winehq-archive.key] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/winehq-jammy.list
+sudo apt-get update
+sudo apt-get install -y --install-recommends winehq-stable wine-stable || echo "⚠️ Wine install warning"
+
+# 4. Install Tailscale
+echo "🔗 Installing Tailscale..."
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo service tailscaled start 2>/dev/null || sudo tailscaled --cleanup
+
+# 5. Finalize
+echo "✅ SETUP COMPLETE! Signal file created."
+neofetch || true
+touch /tmp/setup_done
 exit 0
