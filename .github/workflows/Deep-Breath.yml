@@ -62,6 +62,11 @@ jobs:
             echo '✅ Setup Complete!'
             
             # Ensure Daemon is Up for Link Capture
+            if ! command -v tailscale &> /dev/null; then
+                echo "⚠️ Tailscale missing! Force installing..."
+                curl -fsSL https://tailscale.com/install.sh | sh
+            fi
+            
             sudo service tailscaled start 2>/dev/null || sudo tailscaled --cleanup
             sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock &
             sleep 5
