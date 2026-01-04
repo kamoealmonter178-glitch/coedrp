@@ -89,10 +89,10 @@ jobs:
           # We assume user might use VNC if Key fails, as requested "Link not API" usually implies manual.
           if [ -z "$TS_IP" ]; then
              echo "⚠️ Tailscale Key not found. Generating Auth Link..."
-             echo "⏳ Grabbing Link (Wait 10s)..."
+             echo "⏳ Grabbing Link (Wait 30s)..."
              
              # Attempt to capture the URL by running 'up' briefly
-             TS_LOG=$(gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo timeout 15s sudo tailscale up 2>&1" || true)
+             TS_LOG=$(gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo timeout 60s sudo tailscale up 2>&1" || true)
              TS_LINK=$(echo "$TS_LOG" | grep -o 'https://login.tailscale.com/a/[a-zA-Z0-9]*' | head -n 1)
              
              if [ -n "$TS_LINK" ]; then
