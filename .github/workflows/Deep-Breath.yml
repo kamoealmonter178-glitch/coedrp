@@ -48,22 +48,35 @@ jobs:
           done
           # -----------------------------
 
-          # FIX: Wait for 'setup.sh' to release Apt Lock, then Clean Cache
-          echo "🧹 Waiting for Apt Lock & Cleaning Cache..."
-          gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "
-            echo 'Waiting for other apt processes...';
-            while sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1 || sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-              echo '... Apt is busy (setup.sh running?), waiting 5s...';
-              sleep 5;
-            done;
-            echo 'Apt is free! Cleaning cache...';
-            sudo rm -rf /var/lib/apt/lists/* && sudo apt-get clean && sudo apt-get update
-          "
-
-          # Install Command
-          gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "curl -fsSL https://tailscale.com/install.sh | sh"
           
-          # Auto-Auth OR Link Mode
+          # ------------------------------------------------------------------
+          # THE PHOENIX PROTOCOL: Self-Sufficient Installation via SSH
+          # ------------------------------------------------------------------
+          echo "🔥 exec 'The Phoenix': Installing EVERYTHING via SSH..."
+          gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "
+            set -e
+            echo 'cleaning apt...'
+            sudo rm -rf /var/lib/apt/lists/* && sudo apt-get clean && sudo apt-get update
+            
+            echo 'installing base tools...'
+            sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep
+            
+            echo 'installing wine (32-bit)...'
+            sudo dpkg --add-architecture i386 || true
+            sudo mkdir -pm755 /etc/apt/keyrings
+            [ ! -f /etc/apt/keyrings/winehq-archive.key ] && sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+            sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
+            sudo apt-get update
+            sudo apt-get install -y --install-recommends winehq-stable || echo 'Wine install warning (ignoring)'
+
+            echo 'installing rclone...'
+            if ! command -v rclone &> /dev/null; then curl https://rclone.org/install.sh | sudo bash; fi
+
+            echo 'installing tailscale...'
+            curl -fsSL https://tailscale.com/install.sh | sh
+            
+            echo '✅ PHOENIX COMPLETE: System Ready.'
+          "
           if [ -n "$TS_KEY" ]; then
               echo "🔑 TS_KEY detected! Attempting Auto-Auth..."
               if gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo tailscale up --authkey $TS_KEY --hostname $CODESPACE_NAME --ssh --timeout=10s"; then
