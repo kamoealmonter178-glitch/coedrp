@@ -98,9 +98,24 @@ jobs:
           # Interactive 'up' via SSH is hard to capture. 
           # We assume user might use VNC if Key fails, as requested "Link not API" usually implies manual.
           if [ -z "$TS_IP" ]; then
-             echo "⚠️ Tailscale not fully engaged. Please use VNC -> Terminal -> 'sudo tailscale up' to authenticate manually."
-             echo "TS_IP=Connect-via-VNC-First" >> $GITHUB_ENV
-          fi
+             echo "⚠️ Tailscale Key not found. Generating Auth Link..."
+             echo "⏳ Grabbing Link (Wait 10s)..."
+             
+             # Attempt to capture the URL by running 'up' briefly
+             TS_LOG=$(gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo timeout 15s sudo tailscale up 2>&1" || true)
+             TS_LINK=$(echo "$TS_LOG" | grep -o 'https://login.tailscale.com/a/[a-zA-Z0-9]*' | head -n 1)
+             
+             if [ -n "$TS_LINK" ]; then
+                echo "::notice title=Tailscale Auth Link::Please click here to connect: $TS_LINK"
+                echo ""
+                echo "🔗 LINK FOUND: $TS_LINK"
+                echo ""
+                echo "TS_IP=Pending-Auth-Click-Link-Above" >> $GITHUB_ENV
+             else
+                echo "⚠️ Could not auto-grab link. Please use VNC -> Terminal -> 'sudo tailscale up'."
+                echo "TS_IP=Connect-via-VNC-First" >> $GITHUB_ENV
+             fi
+           fi
 
       - name: 3. Display Connection Info (RDP Style)
         run: |
