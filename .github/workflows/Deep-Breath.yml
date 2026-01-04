@@ -65,7 +65,10 @@ jobs:
             sudo dpkg --add-architecture i386 || true
             sudo mkdir -pm755 /etc/apt/keyrings
             [ ! -f /etc/apt/keyrings/winehq-archive.key ] && sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-            sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
+            
+            # FIX: Use direct DEB line instead of .sources file (Avoids 404)
+            sudo echo "deb [signed-by=/etc/apt/keyrings/winehq-archive.key] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/winehq-jammy.list
+            
             sudo apt-get update
             sudo apt-get install -y --install-recommends winehq-stable || echo 'Wine install warning (ignoring)'
 
