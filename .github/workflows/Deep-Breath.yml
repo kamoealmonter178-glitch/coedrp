@@ -58,8 +58,9 @@ jobs:
             echo 'cleaning apt...'
             sudo rm -rf /var/lib/apt/lists/* && sudo apt-get clean && sudo apt-get update
             
-            echo 'installing base tools...'
-            sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep
+            echo 'installing base tools (xrdp for RDP access)...'
+            sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp
+            sudo service xrdp start
             
             echo 'installing wine (32-bit)...'
             sudo dpkg --add-architecture i386 || true
