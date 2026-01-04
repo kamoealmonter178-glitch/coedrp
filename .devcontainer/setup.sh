@@ -12,14 +12,18 @@ sudo apt-get update
 # 2. Install Base Tools
 sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp
 
-# 3. Install Wine (Verified Deb Method)
-echo "🍷 Installing Wine..."
-sudo dpkg --add-architecture i386 || true
-sudo mkdir -pm755 /etc/apt/keyrings
-[ ! -f /etc/apt/keyrings/winehq-archive.key ] && sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-sudo echo "deb [signed-by=/etc/apt/keyrings/winehq-archive.key] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/winehq-jammy.list
-sudo apt-get update
-sudo apt-get install -y --install-recommends winehq-stable wine-stable || echo "⚠️ Wine install warning"
+# 3. Install Wine (Verified Deb Method) - BACKGROUNDED due to Timeout
+echo "🍷 Triggering Wine Install (Background)..."
+(
+  sudo dpkg --add-architecture i386 || true
+  sudo mkdir -pm755 /etc/apt/keyrings
+  [ ! -f /etc/apt/keyrings/winehq-archive.key ] && sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+  sudo echo "deb [signed-by=/etc/apt/keyrings/winehq-archive.key] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/winehq-jammy.list
+  sudo apt-get update
+  sudo apt-get install -y --install-recommends winehq-stable wine-stable || echo "⚠️ Wine install warning"
+  touch /tmp/wine_ready
+) > /tmp/wine_install.log 2>&1 &
+
 
 # 4. Install Tailscale
 echo "🔗 Installing Tailscale..."
