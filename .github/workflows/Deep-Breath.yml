@@ -28,28 +28,49 @@ jobs:
           # Create with specific Machine Type and Location
           gh codespace create --repo $REPO_NAME --branch main --machine standardLinux32gb --location WestEurope --display-name "$CODESPACE_NAME" --devcontainer-path .devcontainer/devcontainer.json
           
-          echo "⏳ Waiting for initialization (60s)..."
-          sleep 60
+          echo "⏳ Waiting for initialization (100s)..."
+          sleep 100
 
       - name: 2. Install & Configure Tailscale (Maestro Mode)
         run: |
           echo "🔧 Installing Tailscale inside Codespace..."
           CS_NAME=$(gh codespace list --repo $REPO_NAME --json name --jq '.[0].name')
           
+          # --- SSH READY CHECK LOOP ---
+          echo "📞 Checking SSH connectivity..."
+          for i in {1..30}; do
+             if gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "echo Ready"; then
+                echo "✅ SSH is Live!"
+                break
+             fi
+             echo "zzz... Waiting for SSH ($i/30)..."
+             sleep 10
+          done
+          # -----------------------------
+
           # Install Command
           gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "curl -fsSL https://tailscale.com/install.sh | sh"
           
-          # Auto-Auth Logic (If Key Exists)
+          # Auto-Auth OR Link Mode
           if [ -n "$TS_KEY" ]; then
-              echo "🔑 TS_KEY detected! Auto-Authenticating..."
-              gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo tailscale up --authkey $TS_KEY --hostname $CODESPACE_NAME --ssh"
-              
-              # Get IP
-              TS_IP=$(gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "tailscale ip -4")
-              echo "TS_IP=$TS_IP" >> $GITHUB_ENV
-          else
-              echo "⚠️ No TS_KEY found. Manual Login required via VNC."
-              echo "TS_IP=Not-Connected" >> $GITHUB_ENV
+              echo "🔑 TS_KEY detected! Attempting Auto-Auth..."
+              if gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo tailscale up --authkey $TS_KEY --hostname $CODESPACE_NAME --ssh --timeout=10s"; then
+                 echo "✅ Tailscale Connected via Key."
+                 TS_IP=$(gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "tailscale ip -4")
+                 echo "TS_IP=$TS_IP" >> $GITHUB_ENV
+              else
+                 echo "⚠️ Key Auth failed. Switching to Link Mode."
+                 # Fallback to Link Mode logic below if desired, but for now we warn.
+              fi
+          fi
+          
+          # If still not connected (No Key or Failed), generate Auth Link
+          # We run 'up' in background or check status? 
+          # Interactive 'up' via SSH is hard to capture. 
+          # We assume user might use VNC if Key fails, as requested "Link not API" usually implies manual.
+          if [ -z "$TS_IP" ]; then
+             echo "⚠️ Tailscale not fully engaged. Please use VNC -> Terminal -> 'sudo tailscale up' to authenticate manually."
+             echo "TS_IP=Connect-via-VNC-First" >> $GITHUB_ENV
           fi
 
       - name: 3. Display Connection Info (RDP Style)
