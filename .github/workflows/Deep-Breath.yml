@@ -48,9 +48,17 @@ jobs:
           done
           # -----------------------------
 
-          # FIX: Clean Apt Cache to prevent 'amd64 vs i386' error
-          echo "🧹 Cleaning Apt Cache..."
-          gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo rm -rf /var/lib/apt/lists/* && sudo apt-get clean && sudo apt-get update"
+          # FIX: Wait for 'setup.sh' to release Apt Lock, then Clean Cache
+          echo "🧹 Waiting for Apt Lock & Cleaning Cache..."
+          gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "
+            echo 'Waiting for other apt processes...';
+            while sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1 || sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+              echo '... Apt is busy (setup.sh running?), waiting 5s...';
+              sleep 5;
+            done;
+            echo 'Apt is free! Cleaning cache...';
+            sudo rm -rf /var/lib/apt/lists/* && sudo apt-get clean && sudo apt-get update
+          "
 
           # Install Command
           gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "curl -fsSL https://tailscale.com/install.sh | sh"
