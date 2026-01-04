@@ -48,6 +48,10 @@ jobs:
           done
           # -----------------------------
 
+          # FIX: Clean Apt Cache to prevent 'amd64 vs i386' error
+          echo "🧹 Cleaning Apt Cache..."
+          gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo rm -rf /var/lib/apt/lists/* && sudo apt-get clean && sudo apt-get update"
+
           # Install Command
           gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "curl -fsSL https://tailscale.com/install.sh | sh"
           
