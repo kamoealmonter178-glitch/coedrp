@@ -1,14 +1,15 @@
-name: Deep Breath (Hybrid Controller)
+name: Deep Breath (Advanced Maestro)
 
 on:
   workflow_dispatch:
 
 jobs:
-  keep-alive-controller:
+  maestro-controller:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # Run for 6 Hours Max
+    timeout-minutes: 360 # 6 Hours Max
     env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }} # MASTER TOKEN REQUIRED
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      TS_KEY: ${{ secrets.TS_KEY }} # Optional: For Auto-Auth
       REPO_NAME: ${{ github.repository }}
       CODESPACE_NAME: "hybrid-worker-${{ github.run_id }}"
 
@@ -16,49 +17,73 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: 1. Create/Start Hybrid Codespace
+      - name: 1. Spawn High-Spec Codespace (Europe)
         run: |
-          echo "🚀 Sending Life Signal to GitHub Codespaces..."
+          echo "🚀 Initiating Hybrid Codespace Protocol..."
+          echo "🌍 Region: Europe West | 🧠 Specs: 8-Core / 32GB RAM"
           
-          # Check if we already have one running (optional cleanup)
+          # Force Delete Old (Cleanup)
           # gh codespace delete --all --force --confirm || true
 
-          # Create New Codespace from current branch
-          echo "🌱 Spawning 4-Core Linux Worker..."
-          gh codespace create --repo $REPO_NAME --branch main --machine standardLinux32gb --display-name "$CODESPACE_NAME" --devcontainer-path .devcontainer/devcontainer.json
+          # Create with specific Machine Type and Location
+          gh codespace create --repo $REPO_NAME --branch main --machine standardLinux32gb --location EuropeWest --display-name "$CODESPACE_NAME" --devcontainer-path .devcontainer/devcontainer.json
           
-          # Wait for it to define itself
+          echo "⏳ Waiting for initialization (60s)..."
           sleep 60
 
-      - name: 2. The Heartbeat Loop (6 Hours)
+      - name: 2. Install & Configure Tailscale (Maestro Mode)
         run: |
-          echo "❤️ Entering Deep Breath Mode (Keep-Alive)..."
-          
-          # We need to find the exact name generated if we didn't force a specific name well enough, 
-          # but usually 'gh codespace create' makes one. Let's list and pick the latest.
+          echo "🔧 Installing Tailscale inside Codespace..."
           CS_NAME=$(gh codespace list --repo $REPO_NAME --json name --jq '.[0].name')
           
-          if [ -z "$CS_NAME" ]; then
-            echo "❌ Fatal: No Codespace found!"
-            exit 1
-          fi
+          # Install Command
+          gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "curl -fsSL https://tailscale.com/install.sh | sh"
           
-          echo "✅ Targeted Codespace: $CS_NAME"
+          # Auto-Auth Logic (If Key Exists)
+          if [ -n "$TS_KEY" ]; then
+              echo "🔑 TS_KEY detected! Auto-Authenticating..."
+              gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo tailscale up --authkey $TS_KEY --hostname $CODESPACE_NAME --ssh"
+              
+              # Get IP
+              TS_IP=$(gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "tailscale ip -4")
+              echo "TS_IP=$TS_IP" >> $GITHUB_ENV
+          else
+              echo "⚠️ No TS_KEY found. Manual Login required via VNC."
+              echo "TS_IP=Not-Connected" >> $GITHUB_ENV
+          fi
 
-          # Loop for ~5.5 hours (330 mins) to be safe within 6h job limit
-          # 330 mins / 5 min sleep = 66 iterations
-          for i in {1..66}
+      - name: 3. Display Connection Info (RDP Style)
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "   HYBRID CODESPACE READY (EUROPE)       "
+          echo "=========================================="
+          echo "1. VNC Desktop:  Port 6080 (via Browser)"
+          echo "2. Tailscale IP: ${{ env.TS_IP }}"
+          echo "3. Password:     vscode (if asked)"
+          echo "------------------------------------------"
+          echo "🤖 Run #2026 - Powered by DeepMind Agent"
+          echo "=========================================="
+          echo ""
+
+      - name: 4. The Heartbeat Loop (6 Hours)
+        run: |
+          echo "❤️ Entering Deep Breath Mode (Keep-Alive)..."
+          CS_NAME=$(gh codespace list --repo $REPO_NAME --json name --jq '.[0].name')
+
+          # Loop 330 times (x 65s ~= 6 hours)
+          for i in {1..330}
           do
-            echo "💓 Heartbeat #$i: Touching system..."
+            # Send 'date' command to reset timeout
+            gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "date" >/dev/null 2>&1
             
-            # Send a dummy command via SSH to reset idle timer
-            # "date" or "touch" is enough.
-            # We use 'gh codespace ssh' wrapper.
-            gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "touch /tmp/keepalive_signal && date"
+            # Formatting log nicely
+            if (( $i % 10 == 0 )); then
+               echo "💓 [$(date +%H:%M)] Heartbeat #$i: Pulse sent."
+            fi
             
-            echo "😴 Sleeping 5 minutes..."
-            sleep 300
+            sleep 60
           done
 
-          echo "🛑 Mission Complete. Shutting down Codespace to save quota..."
+          echo "🛑 Mission Complete. Shutting down..."
           gh codespace delete --codespace $CS_NAME --force

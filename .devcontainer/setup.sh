@@ -1,41 +1,53 @@
 #!/bin/bash
-set -e
+# BULLETPROOF SETUP SCRIPT
+# Does not exit on error to prevent Codespace Recovery Mode.
 
-echo "🚀 STARING HYBRID SETUP (Linux + Wine + MegaHub)..."
+echo "🚀 STARTING HYBRID SETUP (Safe Mode)..."
+
+# Function to run commands safely
+safe_run() {
+    "$@" || echo "⚠️ Warning: Command '$*' failed, but continuing..."
+}
 
 # 1. Update & Install Essentials
-sudo apt-get update
-sudo apt-get install -y htop neofetch nano unzip software-properties-common
+echo "📦 Updating Base System..."
+safe_run sudo apt-get update
+safe_run sudo apt-get install -y htop neofetch nano unzip software-properties-common wget gnupg2 ca-certificates
 
-# 2. Install Wine (for Windows Apps)
+# 2. Install Wine (Carefully)
 echo "🍷 Installing Wine (Windows Layer)..."
-sudo dpkg --add-architecture i386
+# Add 32-bit architecture
+safe_run sudo dpkg --add-architecture i386
+
+# Add Key (Safe Method)
 sudo mkdir -pm755 /etc/apt/keyrings
-sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
-sudo apt-get update
-sudo apt-get install -y --install-recommends winehq-stable winetricks
+if [ ! -f /etc/apt/keyrings/winehq-archive.key ]; then
+    safe_run sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+fi
+
+# Add Repo
+safe_run sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
+
+# Install Wine
+safe_run sudo apt-get update
+safe_run sudo apt-get install -y --install-recommends winehq-stable winetricks || echo "❌ Wine install had issues. Check logs inside."
 
 # 3. Install Rclone
 echo "☁️ Installing Rclone..."
-sudo -v ; curl https://rclone.org/install.sh | sudo bash
+if ! command -v rclone &> /dev/null; then
+    safe_run curl https://rclone.org/install.sh | sudo bash
+fi
 
-# 4. Configure MegaHub (Parsing mage achonat.txt)
-echo "🔗 Configuring MegaHub..."
+# 4. Configure MegaHub
+echo "🔗 Configuring MegaHub Placeholder..."
 CONFIG_PATH="$HOME/.config/rclone"
 mkdir -p "$CONFIG_PATH"
 touch "$CONFIG_PATH/rclone.conf"
-
-# Read accounts from mage achonat.txt
-# Expected format: email@domain.com (or email:password if raw)
-# Since the file format involves lines like '1)email', we need robust parsing.
-# WARNING: If passwords aren't in the txt, we can't auto-login perfectly. 
-# ASSUMPTION: Using a generic password or user will configure manually via rclone config.
-# For now, we instruct user to run manual config if needed, OR we trust the txt has credentials.
-
-# Let's echo instruction for now as txt parsing is tricky without standard format
-echo "Rclone installed. Run 'rclone config' to setup your MegaHub if validation fails."
+echo "Rclone config created at $CONFIG_PATH/rclone.conf"
 
 # 5. Finalize
-echo "✅ SETUP COMPLETE!"
-neofetch
+echo "✅ SETUP ATTEMPT COMPLETE! (Check warnings above if any)"
+safe_run neofetch
+
+# ALWAYS EXIT SUCCESS to ensure Codespace boots
+exit 0
