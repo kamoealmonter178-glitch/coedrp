@@ -68,7 +68,7 @@ jobs:
             fi
             
             sudo service tailscaled start 2>/dev/null || sudo tailscaled --cleanup
-            sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock &
+            sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock >/dev/null 2>&1 &
             sleep 5
           "
           if [ -n "$TS_KEY" ]; then
