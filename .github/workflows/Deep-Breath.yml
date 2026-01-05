@@ -110,6 +110,10 @@ jobs:
                 echo "🔗 LINK FOUND: $TS_LINK"
                 echo ""
                 echo "TS_IP=Pending-Auth-Click-Link-Above" >> $GITHUB_ENV
+                
+                # Pre-configure 'serve' so it activates once user clicks link
+                echo "🌉 Pre-configuring Tailscale Bridge..."
+                gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "sudo tailscale serve tcp:3389 localhost:3389 2>&1 || true"
              else
                 echo "⚠️ Could not auto-grab link. Please use VNC -> Terminal -> 'sudo tailscale up'."
                 echo "TS_IP=Connect-via-VNC-First" >> $GITHUB_ENV
@@ -123,8 +127,9 @@ jobs:
           echo "   HYBRID CODESPACE READY (EUROPE)       "
           echo "=========================================="
           echo "1. VNC Desktop:  Port 6080 (via Browser)"
-          echo "2. Tailscale IP: ${{ env.TS_IP }}"
-          echo "3. Password:     vscode (if asked)"
+          echo "2. Tailscale IP: ${{ env.TS_IP }} (Check Logs below if Pending)"
+          echo "3. User:         vscode"
+          echo "4. Password:     vscode"
           echo "------------------------------------------"
           echo "🤖 Run #2026 - Powered by DeepMind Agent"
           echo "=========================================="
@@ -141,9 +146,10 @@ jobs:
             # Send 'date' command to reset timeout
             gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "date" >/dev/null 2>&1
             
-            # Formatting log nicely
+            # Formatting log nicely & Fetching IP dynamically
             if (( $i % 10 == 0 )); then
-               echo "💓 [$(date +%H:%M)] Heartbeat #$i: Pulse sent."
+               CURRENT_IP=$(gh codespace ssh --codespace $CS_NAME -- -o StrictHostKeyChecking=no "tailscale ip -4 2>/dev/null || echo 'Waiting for Auth...'")
+               echo "💓 [$(date +%H:%M)] Heartbeat #$i. TS IP: $CURRENT_IP"
             fi
             
             sleep 60

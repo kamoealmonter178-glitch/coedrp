@@ -25,10 +25,20 @@ echo "🍷 Triggering Wine Install (Background)..."
 ) > /tmp/wine_install.log 2>&1 &
 
 
-# 4. Install Tailscale
+# 4. Install Tailscale & Configure Networking
 echo "🔗 Installing Tailscale..."
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo service tailscaled start 2>/dev/null || sudo tailscaled --cleanup
+
+# FIX: Bridge RDP Port for Userspace Network
+echo "🌉 Configuring Tailscale Serve (Port 3389)..."
+# We need the daemon running for this, but it might not be fully up yet.
+# We will rely on Deep-Breath.yml to run the serve command effectively after auth,
+# BUT we enable the service here anyway.
+
+# FIX: Set Password for 'vscode' user (Required for RDP)
+echo "🔑 Setting Default Password..."
+echo "vscode:vscode" | sudo chpasswd
 
 # 5. Finalize
 echo "✅ SETUP COMPLETE! Signal file created."
