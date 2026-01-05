@@ -9,8 +9,7 @@ jobs:
     timeout-minutes: 360 # 6 Hours Max
     env:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      # Use Secret if available, otherwise use the Key provided by user in chat
-      TS_KEY: ${{ secrets.TS_KEY || 'tskey-auth-k5pPNCnS4q11CNTRL-Ri55bvAz5GVt8Uzsx7nPGVCrLTgohjw5Q' }}
+      TS_KEY: ${{ secrets.TS_KEY }} # Optional: For Auto-Auth
       REPO_NAME: ${{ github.repository }}
       CODESPACE_NAME: "hybrid-worker-${{ github.run_id }}"
 
