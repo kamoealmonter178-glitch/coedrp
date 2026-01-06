@@ -67,8 +67,10 @@ jobs:
                 curl -fsSL https://tailscale.com/install.sh | sh
             fi
             
-            sudo service tailscaled start 2>/dev/null || sudo tailscaled --cleanup
-            sudo service tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock >/dev/null 2>&1 &
+            # Force-Kill any zombies and Start Fresh
+            sudo pkill tailscaled || true
+            sudo tailscaled --cleanup
+            sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock >/dev/null 2>&1 &
             sleep 5
             
             # Start XRDP Service (Essential for RDP Connection)

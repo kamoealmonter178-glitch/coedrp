@@ -9,8 +9,9 @@ sudo rm -rf /var/lib/apt/lists/*
 sudo apt-get clean
 sudo apt-get update
 
-# 2. Install Base Tools
-sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp
+# 2. Install Base Tools & Desktop Environment (Fixed Black Screen)
+sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp xfce4 xfce4-goodies dbus-x11
+echo "xfce4-session" > ~/.xsession
 
 # 3. Install Wine (Verified Deb Method) - BACKGROUNDED due to Timeout
 echo "🍷 Triggering Wine Install (Background)..."
@@ -28,7 +29,7 @@ echo "🍷 Triggering Wine Install (Background)..."
 # 4. Install Tailscale & Configure Networking
 echo "🔗 Installing Tailscale..."
 curl -fsSL https://tailscale.com/install.sh | sh
-sudo service tailscaled start 2>/dev/null || sudo tailscaled --cleanup
+sudo service tailscaled stop 2>/dev/null || true
 
 # FIX: Bridge RDP Port for Userspace Network
 echo "🌉 Configuring Tailscale Serve (Port 3389)..."
