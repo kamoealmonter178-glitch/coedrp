@@ -11,7 +11,11 @@ sudo apt-get update
 
 # 2. Install Base Tools & Desktop Environment (Fixed Black Screen)
 sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp xfce4 xfce4-goodies dbus-x11
-echo "xfce4-session" > ~/.xsession
+
+# ROBUST CONFIG: Fix "No X Server" & Permission Errors
+echo "startxfce4" > ~/.xsession
+chmod +x ~/.xsession
+sudo adduser xrdp ssl-cert
 
 # 3. Install Wine (Verified Deb Method) - BACKGROUNDED due to Timeout
 echo "🍷 Triggering Wine Install (Background)..."
