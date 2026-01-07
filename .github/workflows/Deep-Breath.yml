@@ -73,8 +73,8 @@ jobs:
             sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock >/dev/null 2>&1 &
             sleep 5
             
-            # Start XRDP Service (Essential for RDP Connection)
-            sudo service xrdp start
+            # Start XRDP Service (Restart to pick up .xsession)
+            sudo service xrdp restart
           "
           if [ -n "$TS_KEY" ]; then
               echo "🔑 TS_KEY detected! Attempting Auto-Auth..."
