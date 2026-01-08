@@ -9,13 +9,14 @@ sudo rm -rf /var/lib/apt/lists/*
 sudo apt-get clean
 sudo apt-get update
 
-# 2. Install Base Tools & Desktop Environment (Fixed Black Screen)
-sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp xfce4 xfce4-goodies dbus-x11
+# 2. Install Base Tools & Desktop Environment (LXDE - Lightweight & Reliable)
+sudo apt-get install -y --no-install-recommends software-properties-common wget curl grep xrdp lxde-core lxde-common
 
-# ROBUST CONFIG: Fix "Black Screen" by forcing startwm.sh (The Nuclear Option)
+# ROBUST CONFIG: Force LXDE & Fix Permissions
 sudo mv /etc/xrdp/startwm.sh /etc/xrdp/startwm.sh.bak 2>/dev/null || true
-echo -e "#!/bin/sh\nunset DBUS_SESSION_BUS_ADDRESS\nunset XDG_RUNTIME_DIR\nstartxfce4" | sudo tee /etc/xrdp/startwm.sh > /dev/null
+echo -e "#!/bin/sh\nunset DBUS_SESSION_BUS_ADDRESS\nunset XDG_RUNTIME_DIR\nstartlxde" | sudo tee /etc/xrdp/startwm.sh > /dev/null
 sudo chmod +x /etc/xrdp/startwm.sh
+sudo sed -i 's/allowed_users=console/allowed_users=anybody/g' /etc/X11/Xwrapper.config 2>/dev/null || true
 sudo adduser xrdp ssl-cert
 
 # 3. Install Wine (Verified Deb Method) - BACKGROUNDED due to Timeout
